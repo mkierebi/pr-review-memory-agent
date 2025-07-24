@@ -134,13 +134,19 @@ This method should validate the payment object for null values before processing
 
 ### Brak sugestii?
 1. Memory może być pusta (first PRs)
-2. Low similarity threshold
+2. **Context mismatch** - Ensure embedding context format is consistent between storage and search
 3. Check Claude API quota/limits
+4. Low similarity threshold - try lowering min_similarity in generate_review.py
 
 ### Error w komentarzach?
 1. PR może być za duży (rate limiting)
 2. File paths changed between review i post
 3. GitHub API rate limits
+
+### Context Format Issue (Fixed)
+**Problem**: Embeddings were stored with context format `"PR #X in repo"` but searched with `"File: X Changes: +Y -Z"`, causing 0% similarity matches.
+
+**Solution**: Updated `generate_review.py` to use consistent context format for both storage and search operations.
 
 ## 📈 Monitoring
 
