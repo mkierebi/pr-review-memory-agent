@@ -35,7 +35,7 @@ def get_pr_changes():
             chunks = split_patch_into_chunks(file.patch, file.filename)
             changes.extend(chunks)
     
-    return changes, pr
+    return changes, pr, repo
 
 
 def split_patch_into_chunks(patch: str, filename: str, max_lines: int = 20) -> List[Dict]:
@@ -89,7 +89,7 @@ def split_patch_into_chunks(patch: str, filename: str, max_lines: int = 20) -> L
     return chunks
 
 
-def find_similar_past_reviews(code_chunks: List[Dict], memory_manager: FAISSMemoryManager, claude_client: ClaudeEmbeddingClient) -> List[Dict]:
+def find_similar_past_reviews(code_chunks: List[Dict], memory_manager: FAISSMemoryManager, claude_client: ClaudeEmbeddingClient, pr_info: Dict) -> List[Dict]:
     """Find similar past reviews for code chunks"""
     
     review_suggestions = []
@@ -107,8 +107,8 @@ def find_similar_past_reviews(code_chunks: List[Dict], memory_manager: FAISSMemo
     print(f"🎯 Using similarity threshold: {min_similarity} (memory size: {memory_size})")
     
     for chunk in code_chunks:
-        # Generate embedding for current code chunk
-        context = f"File: {chunk['filename']}\nChanges: +{len(chunk['added_lines'])} -{len(chunk['removed_lines'])}"
+        # Generate embedding for current code chunk using same context format as storage
+        context = f"PR #{pr_info.get('pr_number', 'unknown')} in {pr_info.get('repo', 'unknown')}"
         query_embedding = claude_client.generate_review_embedding(chunk['code_chunk'], context)
         
         # Search for similar reviews
@@ -283,7 +283,7 @@ def main():
     
     # Get PR changes
     try:
-        code_chunks, pr = get_pr_changes()
+        code_chunks, pr, repo = get_pr_changes()
         print(f"📝 Found {len(code_chunks)} code chunks to review")
         
         if not code_chunks:
@@ -299,7 +299,11 @@ def main():
     claude_client = ClaudeEmbeddingClient(anthropic_api_key)
     
     # Find similar past reviews
-    review_suggestions = find_similar_past_reviews(code_chunks, memory_manager, claude_client)
+    pr_search_info = {
+        'pr_number': pr.number,
+        'repo': repo.full_name
+    }
+    review_suggestions = find_similar_past_reviews(code_chunks, memory_manager, claude_client, pr_search_info)
     print(f"🔎 Found {len(review_suggestions)} chunks with similar past reviews")
     
     if not review_suggestions:
