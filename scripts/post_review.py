@@ -7,7 +7,7 @@ import json
 from github import Github
 from typing import List, Dict
 
-def load_review_context(context_path: str = "review_rules.txt") -> str:
+def load_review_context(context_path: str = "scripts/review_rules.txt") -> str:
     """Load rules or additional context for the review from an external file."""
     if os.path.exists(context_path):
         with open(context_path, "r", encoding="utf-8") as f:

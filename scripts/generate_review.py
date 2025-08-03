@@ -11,6 +11,9 @@ from faiss_memory_manager import FAISSMemoryManager
 import requests
 from typing import List, Dict, Tuple
 
+from scripts import call_claude_api
+from scripts.post_review import load_review_context
+
 
 def get_pr_changes():
     """Get PR changes and file diffs"""
@@ -139,6 +142,17 @@ def find_similar_past_reviews(code_chunks: List[Dict], memory_manager: FAISSMemo
     
     return review_suggestions
 
+def build_review_prompt(code_chunk, review_context):
+    return f"""You are a code reviewer.
+Review the following code according to these guidelines:
+
+{review_context}
+
+Code to review:
+{code_chunk}
+
+List any issues found, referencing the guidelines. If everything is OK, say so.
+"""
 
 def generate_review_comments_with_claude(review_suggestions: List[Dict], pr_info: Dict) -> List[Dict]:
     """Use Claude to generate contextual review comments based on similar past reviews"""
@@ -223,7 +237,7 @@ Response format: Provide only the review comment text, or "NO_REVIEW_NEEDED" if 
                 if comment_text and comment_text != "NO_REVIEW_NEEDED":
                     # Extract line information for inline comments
                     line_number = extract_line_number_from_hunk(suggestion['hunk_header'])
-                    
+
                     if review_context:
                         comment_text = f"{comment_text}\n\n---\n*📜 Review context:*\n{review_context}"
                     
@@ -322,16 +336,21 @@ def main():
         if os.path.exists(review_context_path):
             with open(review_context_path, "r", encoding="utf-8") as f:
                 review_context = f.read()
+
+            review_context = load_review_context()
             # Generate a generic comment for each code chunk
             review_comments = []
             for chunk in code_chunks:
-                line_number = extract_line_number_from_hunk(chunk['hunk_header'])
+                prompt = build_review_prompt(chunk['code'], review_context)
+                # Call to your LLM API to generate the comment
+                comment_text = call_claude_api(prompt)
                 review_comments.append({
                     'file': chunk['filename'],
-                    'line': line_number,
-                    'comment': f"Review context:\n{review_context}",
+                    'line': extract_line_number_from_hunk(chunk['hunk_header']),
+                    'comment': comment_text,
                     'similarity_info': []
                 })
+
             # Save generated review
             if review_comments:
                 review_data = {
