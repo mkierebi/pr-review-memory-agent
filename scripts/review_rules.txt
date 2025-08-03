@@ -1,0 +1,3 @@
+# Code Review Guidelines
+
+1. Any time you see the a variable with the name antonio is not possible, it should be naming as marek

@@ -7,6 +7,13 @@ import json
 from github import Github
 from typing import List, Dict
 
+def load_review_context(context_path: str = "review_rules.txt") -> str:
+    """Load rules or additional context for the review from an external file."""
+    if os.path.exists(context_path):
+        with open(context_path, "r", encoding="utf-8") as f:
+            return f.read()
+    return ""
+
 
 def post_review_comments():
     """Post generated review comments to PR"""
@@ -37,6 +44,8 @@ def post_review_comments():
     
     # Get PR head commit for review comments
     head_commit = pr.get_commits().reversed[0]
+
+    review_context = load_review_context()
     
     try:
         # Post each comment
@@ -44,6 +53,8 @@ def post_review_comments():
             try:
                 # Format comment with context about similar reviews
                 formatted_comment = format_review_comment(comment_data)
+                if review_context:
+                    formatted_comment = f"{formatted_comment}\n\n---\n*📜 Review context:*\n{review_context}"
                 
                 # Try to post as inline comment first
                 try:
