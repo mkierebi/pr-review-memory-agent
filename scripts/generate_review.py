@@ -11,7 +11,7 @@ from faiss_memory_manager import FAISSMemoryManager
 import requests
 from typing import List, Dict, Tuple
 
-from scripts import call_claude_api
+from scripts.call_claude_api import call_claude_api
 from scripts.post_review import load_review_context
 
 
