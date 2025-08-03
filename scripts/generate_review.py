@@ -341,7 +341,7 @@ def main():
             # Generate a generic comment for each code chunk
             review_comments = []
             for chunk in code_chunks:
-                prompt = build_review_prompt(chunk['code'], review_context)
+                prompt = build_review_prompt(chunk['code_chunk'], review_context)
                 # Call to your LLM API to generate the comment
                 comment_text = call_claude_api(prompt)
                 review_comments.append({
