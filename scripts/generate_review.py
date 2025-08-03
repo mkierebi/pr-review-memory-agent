@@ -148,6 +148,12 @@ def generate_review_comments_with_claude(review_suggestions: List[Dict], pr_info
         print("ANTHROPIC_API_KEY not found")
         return []
     
+    review_context_path = "scripts/review_rules.txt"
+    review_context = ""
+    if os.path.exists(review_context_path):
+        with open(review_context_path, "r", encoding="utf-8") as f:
+            review_context = f.read()
+    
     review_comments = []
     
     for suggestion in review_suggestions:
@@ -217,6 +223,9 @@ Response format: Provide only the review comment text, or "NO_REVIEW_NEEDED" if 
                 if comment_text and comment_text != "NO_REVIEW_NEEDED":
                     # Extract line information for inline comments
                     line_number = extract_line_number_from_hunk(suggestion['hunk_header'])
+                    
+                    if review_context:
+                        comment_text = f"{comment_text}\n\n---\n*📜 Review context:*\n{review_context}"
                     
                     review_comments.append({
                         'file': suggestion['file'],
@@ -308,6 +317,36 @@ def main():
     
     if not review_suggestions:
         print("📭 No similar past reviews found")
+        # NEW: Fallback to context rules if available
+        review_context_path = "scripts/review_rules.txt"
+        if os.path.exists(review_context_path):
+            with open(review_context_path, "r", encoding="utf-8") as f:
+                review_context = f.read()
+            # Generate a generic comment for each code chunk
+            review_comments = []
+            for chunk in code_chunks:
+                line_number = extract_line_number_from_hunk(chunk['hunk_header'])
+                review_comments.append({
+                    'file': chunk['filename'],
+                    'line': line_number,
+                    'comment': f"Review context:\n{review_context}",
+                    'similarity_info': []
+                })
+            # Save generated review
+            if review_comments:
+                review_data = {
+                    'pr_number': pr.number,
+                    'comments': review_comments,
+                    'metadata': {
+                        'total_chunks_analyzed': len(code_chunks),
+                        'chunks_with_similar_reviews': 0,
+                        'comments_generated': len(review_comments),
+                        'memory_size': memory_manager.index.ntotal
+                    }
+                }
+                with open('generated_review.json', 'w') as f:
+                    json.dump(review_data, f, indent=2)
+                print("✅ Review generated with context rules only")
         return
     
     # Generate review comments using Claude
