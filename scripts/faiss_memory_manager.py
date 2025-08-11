@@ -19,7 +19,7 @@ from claude_embeddings import ReviewEmbedding, ReviewEmbeddingManager
 class FAISSMemoryManager:
     """Manages FAISS index and metadata for review embeddings"""
     
-    def __init__(self, dimension: int = 768, index_type: str = "flat"):
+    def __init__(self, dimension: int = 384, index_type: str = "flat"):  # Updated to match Cohere light model
         self.dimension = dimension
         self.index_type = index_type
         self.index = None
@@ -47,6 +47,13 @@ class FAISSMemoryManager:
         if review_embedding.id in self.id_to_index:
             print(f"Embedding {review_embedding.id} already exists, skipping")
             return False
+        
+        # Auto-detect dimension from first embedding if not initialized
+        embedding_dim = len(review_embedding.embedding_vector)
+        if self.index is None or self.dimension != embedding_dim:
+            print(f"Initializing FAISS index with dimension {embedding_dim}")
+            self.dimension = embedding_dim
+            self._initialize_index()
         
         # Prepare embedding vector
         embedding_vector = np.array([review_embedding.embedding_vector], dtype=np.float32)
@@ -79,6 +86,13 @@ class FAISSMemoryManager:
         if not new_embeddings:
             print("No new embeddings to add")
             return 0
+        
+        # Auto-detect dimension from first embedding if not initialized
+        embedding_dim = len(new_embeddings[0])
+        if self.index is None or self.dimension != embedding_dim:
+            print(f"Initializing FAISS index with dimension {embedding_dim}")
+            self.dimension = embedding_dim
+            self._initialize_index()
         
         # Prepare embedding matrix
         embedding_matrix = np.array(new_embeddings, dtype=np.float32)
@@ -173,7 +187,17 @@ class FAISSMemoryManager:
             
             self.metadata = metadata_dict['embeddings']
             self.id_to_index = metadata_dict['id_to_index']
-            self.dimension = metadata_dict['dimension']
+            
+            # Check if dimension changed (old vs new embeddings)
+            stored_dimension = metadata_dict.get('dimension', 768)
+            if self.dimension != stored_dimension:
+                print(f"Warning: Stored embeddings have dimension {stored_dimension}, but current is {self.dimension}")
+                print("Consider regenerating memory or using compatibility mode")
+                # For now, use the stored dimension
+                self.dimension = stored_dimension
+            else:
+                self.dimension = metadata_dict['dimension']
+                
             self.index_type = metadata_dict['index_type']
             
             print(f"Loaded {self.index.ntotal} embeddings from {index_path}")

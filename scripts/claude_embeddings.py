@@ -36,9 +36,10 @@ class CohereEmbeddingClient:
         self.api_key = api_key
         self.cohere_client = cohere.Client(api_key)
         
-    def generate_embedding(self, text: str, model: str = "embed-english-v3.0") -> List[float]:
+    def generate_embedding(self, text: str, model: str = "embed-english-light-v3.0") -> List[float]:
         """
         Generate embedding for given text using Cohere API
+        Using light model (384 dim) which is smaller and faster
         """
         try:
             response = self.cohere_client.embed(
