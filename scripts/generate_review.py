@@ -6,7 +6,7 @@ import os
 import json
 import sys
 from github import Github
-from claude_embeddings import ClaudeEmbeddingClient, ReviewEmbeddingManager
+from claude_embeddings import CohereEmbeddingClient, ReviewEmbeddingManager
 from faiss_memory_manager import FAISSMemoryManager
 import requests
 from typing import List, Dict, Tuple
@@ -89,7 +89,7 @@ def split_patch_into_chunks(patch: str, filename: str, max_lines: int = 20) -> L
     return chunks
 
 
-def find_similar_past_reviews(code_chunks: List[Dict], memory_manager: FAISSMemoryManager, claude_client: ClaudeEmbeddingClient, pr_info: Dict) -> List[Dict]:
+def find_similar_past_reviews(code_chunks: List[Dict], memory_manager: FAISSMemoryManager, cohere_client: CohereEmbeddingClient, pr_info: Dict) -> List[Dict]:
     """Find similar past reviews for code chunks"""
     
     review_suggestions = []
@@ -109,7 +109,7 @@ def find_similar_past_reviews(code_chunks: List[Dict], memory_manager: FAISSMemo
     for chunk in code_chunks:
         # Generate embedding for current code chunk using same context format as storage
         context = f"PR #{pr_info.get('pr_number', 'unknown')} in {pr_info.get('repo', 'unknown')}"
-        query_embedding = claude_client.generate_review_embedding(chunk['code_chunk'], context)
+        query_embedding = cohere_client.generate_review_embedding(chunk['code_chunk'], context)
         
         # Search for similar reviews
         similar_reviews = memory_manager.search_similar(
@@ -294,16 +294,16 @@ def main():
         print(f"❌ Error getting PR changes: {e}")
         return
     
-    # Initialize Claude client
-    anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
-    claude_client = ClaudeEmbeddingClient(anthropic_api_key)
+    # Initialize Cohere client
+    cohere_api_key = os.getenv('COHERE_API_KEY')
+    cohere_client = CohereEmbeddingClient(cohere_api_key)
     
     # Find similar past reviews
     pr_search_info = {
         'pr_number': pr.number,
         'repo': repo.full_name
     }
-    review_suggestions = find_similar_past_reviews(code_chunks, memory_manager, claude_client, pr_search_info)
+    review_suggestions = find_similar_past_reviews(code_chunks, memory_manager, cohere_client, pr_search_info)
     print(f"🔎 Found {len(review_suggestions)} chunks with similar past reviews")
     
     if not review_suggestions:

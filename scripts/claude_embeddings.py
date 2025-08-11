@@ -1,6 +1,6 @@
 """
-Claude Embeddings Utility for PR Review Memory System
-Handles embedding generation and management using Anthropic Claude API
+Cohere Embeddings Utility for PR Review Memory System
+Handles embedding generation and management using Cohere API
 """
 
 import os
@@ -12,6 +12,7 @@ import requests
 import time
 from dataclasses import dataclass, asdict
 from datetime import datetime
+import cohere
 
 
 @dataclass
@@ -28,26 +29,28 @@ class ReviewEmbedding:
     similarity_score: Optional[float] = None
 
 
-class ClaudeEmbeddingClient:
-    """Client for generating embeddings using Claude API"""
+class CohereEmbeddingClient:
+    """Client for generating embeddings using Cohere API"""
     
-    def __init__(self, api_key: str, base_url: str = "https://api.anthropic.com"):
+    def __init__(self, api_key: str):
         self.api_key = api_key
-        self.base_url = base_url
-        self.headers = {
-            "Content-Type": "application/json",
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01"
-        }
+        self.cohere_client = cohere.Client(api_key)
         
-    def generate_embedding(self, text: str, model: str = "claude-3-haiku-20240307") -> List[float]:
+    def generate_embedding(self, text: str, model: str = "embed-english-v3.0") -> List[float]:
         """
-        Generate embedding for given text using Claude API
-        Note: This is a placeholder - actual Claude API might not have direct embedding endpoint
-        In practice, you might need to use a different embedding service or implement text processing
+        Generate embedding for given text using Cohere API
         """
-        # For now, we'll use a simple hash-based approach as placeholder
-        # In production, replace with actual embedding API call
+        try:
+            response = self.cohere_client.embed(
+                texts=[text],
+                model=model,
+                input_type="search_document"  # For documents that will be searched
+            )
+            return response.embeddings[0]
+        except Exception as e:
+            print(f"Error generating Cohere embedding: {e}")
+            # Fallback to deterministic embedding for development
+            return self._simulate_embedding(text)
         text_hash = hashlib.sha256(text.encode()).hexdigest()
         
         # Simulate embedding generation (replace with actual API call)
@@ -94,8 +97,8 @@ class ClaudeEmbeddingClient:
 class ReviewEmbeddingManager:
     """Manages review embeddings storage and retrieval"""
     
-    def __init__(self, claude_client: ClaudeEmbeddingClient):
-        self.claude_client = claude_client
+    def __init__(self, cohere_client: CohereEmbeddingClient):
+        self.cohere_client = cohere_client
         
     def create_review_embedding(
         self,
@@ -114,7 +117,7 @@ class ReviewEmbeddingManager:
         
         # Generate embedding
         context = f"PR #{pr_info.get('pr_number', 'unknown')} in {pr_info.get('repo', 'unknown')}"
-        embedding_vector = self.claude_client.generate_review_embedding(code_chunk, context)
+        embedding_vector = self.cohere_client.generate_review_embedding(code_chunk, context)
         
         # Extract tags from review comment if not provided
         if tags is None:
@@ -205,9 +208,9 @@ def create_embedding_for_pr_code(code_diff: str, file_path: str, pr_context: Dic
     """
     api_key = os.getenv('ANTHROPIC_API_KEY')
     if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY environment variable is required")
+        raise ValueError("COHERE_API_KEY environment variable is required")
     
-    client = ClaudeEmbeddingClient(api_key)
+    client = CohereEmbeddingClient(api_key)
     context = f"File: {file_path}, PR: {pr_context.get('title', '')}"
     
     return client.generate_review_embedding(code_diff, context)
@@ -215,9 +218,9 @@ def create_embedding_for_pr_code(code_diff: str, file_path: str, pr_context: Dic
 
 if __name__ == "__main__":
     # Example usage
-    api_key = os.getenv('ANTHROPIC_API_KEY', 'dummy-key-for-testing')
-    claude_client = ClaudeEmbeddingClient(api_key)
-    manager = ReviewEmbeddingManager(claude_client)
+    api_key = os.getenv('COHERE_API_KEY', 'dummy-key-for-testing')
+    cohere_client = CohereEmbeddingClient(api_key)
+    manager = ReviewEmbeddingManager(cohere_client)
     
     # Test embedding generation
     code_sample = """

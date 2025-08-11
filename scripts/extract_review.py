@@ -6,7 +6,7 @@ import os
 import json
 import sys
 from github import Github
-from claude_embeddings import ClaudeEmbeddingClient, ReviewEmbeddingManager
+from claude_embeddings import CohereEmbeddingClient, ReviewEmbeddingManager
 from faiss_memory_manager import FAISSMemoryManager
 import tempfile
 from pathlib import Path
@@ -162,14 +162,14 @@ def extract_review_from_event():
 def process_and_store_reviews(review_data_list):
     """Convert review data to embeddings and store in memory"""
     
-    anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
-    if not anthropic_api_key:
-        print("ANTHROPIC_API_KEY not found, cannot generate embeddings")
+    cohere_api_key = os.getenv('COHERE_API_KEY')
+    if not cohere_api_key:
+        print("COHERE_API_KEY not found, cannot generate embeddings")
         return False
     
     # Initialize embedding components
-    claude_client = ClaudeEmbeddingClient(anthropic_api_key)
-    embedding_manager = ReviewEmbeddingManager(claude_client)
+    cohere_client = CohereEmbeddingClient(cohere_api_key)
+    embedding_manager = ReviewEmbeddingManager(cohere_client)
     
     # Load existing memory
     memory_manager = FAISSMemoryManager()
