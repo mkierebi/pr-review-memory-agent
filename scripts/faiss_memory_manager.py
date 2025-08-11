@@ -239,11 +239,11 @@ def create_memory_manager_from_reviews(reviews: List[Dict]) -> FAISSMemoryManage
 
 if __name__ == "__main__":
     # Example usage
-    from claude_embeddings import ClaudeEmbeddingClient, ReviewEmbeddingManager
+    from claude_embeddings import CohereEmbeddingClient, ReviewEmbeddingManager
     
     # Create sample data
     api_key = os.getenv('ANTHROPIC_API_KEY', 'dummy-key-for-testing')
-    claude_client = ClaudeEmbeddingClient(api_key)
+    claude_client = CohereEmbeddingClient(api_key)
     embedding_manager = ReviewEmbeddingManager(claude_client)
     
     # Create sample embeddings

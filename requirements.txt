@@ -4,3 +4,4 @@ faiss-cpu==1.7.4
 anthropic==0.7.8
 PyGithub==1.59.1
 python-dotenv==1.0.0
+cohere==4.37

@@ -15,6 +15,7 @@ Dodaj w Settings → Secrets and variables → Actions:
 
 ```bash
 ANTHROPIC_API_KEY=your_claude_api_key_here
+COHERE_API_KEY=your_cohere_api_key_here
 ```
 
 ### 2. Utworzenie gałęzi memory
@@ -54,7 +55,7 @@ W Settings → Actions → General → Workflow permissions:
 ## 🛠 Komponenty
 
 ### Core Files
-- `scripts/claude_embeddings.py` - Claude API integration + embedding management
+- `scripts/claude_embeddings.py` - Cohere API integration + embedding management
 - `scripts/faiss_memory_manager.py` - FAISS vector storage + similarity search
 - `scripts/extract_review.py` - Ekstrakcja review'ów z GitHub events
 - `scripts/generate_review.py` - Generowanie automatycznych review'ów
@@ -73,7 +74,8 @@ memory/ branch:
 ### Environment Variables
 ```bash
 GITHUB_TOKEN=automatic        # Provided by GitHub Actions
-ANTHROPIC_API_KEY=required    # Your Claude API key
+ANTHROPIC_API_KEY=required    # Your Claude API key for review generation
+COHERE_API_KEY=required       # Your Cohere API key for embeddings
 PR_NUMBER=automatic          # From GitHub event
 REPO_NAME=automatic          # From GitHub context
 ```
