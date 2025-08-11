@@ -42,6 +42,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
         REPO_NAME: ${{ github.repository }}
         BASE_SHA: ${{ github.event.pull_request.base.sha }}
