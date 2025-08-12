@@ -5,7 +5,47 @@ Post generated review comments to GitHub PR
 import os
 import json
 from github import Github
-from typing import List, Dict
+from typing import List, Dict, Optional
+
+def get_position_in_diff(patch: str, target_line: int) -> Optional[int]:
+    """
+    Find the position in diff patch for a given line number
+    Returns the position (1-based) or None if not found
+    """
+    if not patch:
+        return None
+        
+    lines = patch.split('\n')
+    position = 0
+    current_new_line = 0
+    
+    for line in lines:
+        if line.startswith('@@'):
+            # Parse hunk header like "@@ -10,7 +10,7 @@"
+            try:
+                parts = line.split()
+                new_range = parts[1]  # +10,7 part  
+                current_new_line = int(new_range.split(',')[0].replace('+', ''))
+                position += 1
+                continue
+            except:
+                continue
+                
+        position += 1
+        
+        if line.startswith('+'):
+            # This is a new line
+            if current_new_line == target_line:
+                return position
+            current_new_line += 1
+        elif line.startswith('-'):
+            # This is a deleted line, don't increment new line counter
+            pass
+        elif line.startswith(' '):
+            # This is a context line
+            current_new_line += 1
+            
+    return None
 
 def load_review_context(context_path: str = "scripts/review_rules.txt") -> str:
     """Load rules or additional context for the review from an external file."""
@@ -56,25 +96,11 @@ def post_review_comments():
                 if review_context:
                     formatted_comment = f"{formatted_comment}\n\n---\n*📜 Review context:*\n{review_context}"
                 
-                # Try to post as inline comment first
-                try:
-                    pr.create_review_comment(
-                        body=formatted_comment,
-                        commit=head_commit,
-                        path=comment_data['file'],
-                        line=comment_data['line']
-                    )
-                    print(f"✅ Posted inline comment on {comment_data['file']}:{comment_data['line']}")
-                    comments_posted += 1
-                    
-                except Exception as e:
-                    # If inline comment fails, post as general PR comment
-                    print(f"⚠️ Inline comment failed, posting as general comment: {e}")
-                    
-                    general_comment = f"**File: `{comment_data['file']}`** (line ~{comment_data['line']})\n\n{formatted_comment}"
-                    pr.create_issue_comment(general_comment)
-                    print(f"✅ Posted general comment for {comment_data['file']}")
-                    comments_posted += 1
+                # Post as general PR comment (more reliable than inline comments)
+                general_comment = f"**File: `{comment_data['file']}`** (line ~{comment_data['line']})\n\n{formatted_comment}"
+                pr.create_issue_comment(general_comment)
+                print(f"✅ Posted comment for {comment_data['file']}:{comment_data['line']}")
+                comments_posted += 1
                     
             except Exception as e:
                 print(f"❌ Error posting comment for {comment_data['file']}: {e}")

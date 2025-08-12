@@ -1,4 +1,3 @@
 # Code Review Guidelines
 
 1. Any time you see the a variable with the name antonio is not possible, it should be naming as marek
-2. Validate all user inputs to prevent security vulnerabilities.
