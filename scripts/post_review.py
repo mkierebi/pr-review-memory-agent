@@ -75,6 +75,12 @@ def calculate_diff_position(pr, file_path: str, target_line: int) -> int:
         position = 0
         current_line = 0
         
+        print(f"🔍 Calculating diff position for {file_path}, target line: {target_line}")
+        print(f"📝 Patch preview (first 10 lines):")
+        
+        for i, line in enumerate(patch_lines[:10]):
+            print(f"  {i}: '{line}'")
+        
         for line in patch_lines:
             if line.startswith('@@'):
                 # Parse hunk header to get starting line
@@ -82,18 +88,23 @@ def calculate_diff_position(pr, file_path: str, target_line: int) -> int:
                 match = re.search(r'\+(\d+)', line)
                 if match:
                     current_line = int(match.group(1)) - 1
+                    print(f"🎯 Hunk start: line {current_line + 1}")
                 continue
                 
             position += 1
             
             if line.startswith('+'):
                 current_line += 1
+                print(f"📍 Position {position}: +line {current_line}")
                 if current_line == target_line:
+                    print(f"✅ Found target line {target_line} at position {position}")
                     return position
             elif line.startswith(' '):
                 current_line += 1
+                print(f"📍 Position {position}: context line {current_line}")
             # Lines starting with '-' don't increment current_line
         
+        print(f"❌ Target line {target_line} not found in diff")
         return None
     except Exception as e:
         print(f"Error calculating diff position: {e}")
@@ -147,10 +158,10 @@ def post_review_comments():
                     diff_position = calculate_diff_position(pr, comment_data['file'], comment_data['line'])
                     
                     if diff_position is not None:
-                        # Use position for inline comments
+                        # Use position for inline comments - correct PyGithub syntax
                         pr.create_review_comment(
                             body=formatted_comment,
-                            commit=head_commit,
+                            commit_id=head_commit.sha,
                             path=comment_data['file'],
                             position=diff_position
                         )
