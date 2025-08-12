@@ -96,11 +96,24 @@ def post_review_comments():
                 if review_context:
                     formatted_comment = f"{formatted_comment}\n\n---\n*📜 Review context:*\n{review_context}"
                 
-                # Post as general PR comment (more reliable than inline comments)
-                general_comment = f"**File: `{comment_data['file']}`** (line ~{comment_data['line']})\n\n{formatted_comment}"
-                pr.create_issue_comment(general_comment)
-                print(f"✅ Posted comment for {comment_data['file']}:{comment_data['line']}")
-                comments_posted += 1
+                # Try inline comment first, fallback to general comment
+                try:
+                    # For inline comments, we need the position in the diff, not line number
+                    pr.create_review_comment(
+                        body=formatted_comment,
+                        commit=head_commit,
+                        path=comment_data['file'],
+                        line=comment_data['line'],
+                        side='RIGHT'
+                    )
+                    print(f"✅ Posted inline comment for {comment_data['file']}:{comment_data['line']}")
+                    comments_posted += 1
+                except Exception as inline_error:
+                    # Fallback to general comment with file reference
+                    general_comment = f"**File: `{comment_data['file']}`** (line ~{comment_data['line']})\n\n{formatted_comment}"
+                    pr.create_issue_comment(general_comment)
+                    print(f"✅ Posted general comment for {comment_data['file']}:{comment_data['line']} (inline failed: {str(inline_error)[:50]}...)")
+                    comments_posted += 1
                     
             except Exception as e:
                 print(f"❌ Error posting comment for {comment_data['file']}: {e}")

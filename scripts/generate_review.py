@@ -268,12 +268,24 @@ Response format: Provide only the review comment text, or "NO_REVIEW_NEEDED" if 
 def extract_line_number_from_hunk(hunk_header: str) -> int:
     """Extract line number from git hunk header"""
     try:
-        # Parse hunk header like "@@ -10,7 +10,7 @@"
+        # Parse hunk header like "@@ -10,7 +10,7 @@" or "@@ -10,7 +10,7 @@ some context"
+        import re
+        
+        # Look for pattern like "+10,7" or "+10"
+        match = re.search(r'\+(\d+)', hunk_header)
+        if match:
+            return int(match.group(1))
+        
+        # Fallback: try to find any number after +
         parts = hunk_header.split()
-        new_range = parts[1]  # +10,7 part
-        line_num = int(new_range.split(',')[0].replace('+', ''))
-        return line_num
-    except:
+        for part in parts:
+            if '+' in part:
+                nums = re.findall(r'\+(\d+)', part)
+                if nums:
+                    return int(nums[0])
+        
+        return 1
+    except Exception as e:
         return 1
 
 
