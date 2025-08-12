@@ -158,25 +158,62 @@ def post_review_comments():
                     diff_position = calculate_diff_position(pr, comment_data['file'], comment_data['line'])
                     
                     if diff_position is not None:
-                        # Use position for inline comments - correct PyGithub syntax
-                        pr.create_review_comment(
-                            body=formatted_comment,
-                            commit_id=head_commit.sha,
-                            path=comment_data['file'],
-                            position=diff_position
-                        )
-                        print(f"✅ Posted inline comment for {comment_data['file']} at position {diff_position} (line {comment_data['line']})")
-                        comments_posted += 1
+                        # Try different PyGithub syntax variations
+                        try:
+                            # Method 1: Using commit_id as string
+                            pr.create_review_comment(
+                                body=formatted_comment,
+                                commit_id=head_commit.sha,
+                                path=comment_data['file'],
+                                position=diff_position
+                            )
+                            print(f"✅ Posted inline comment (method 1) for {comment_data['file']} at position {diff_position}")
+                            comments_posted += 1
+                        except Exception as e1:
+                            try:
+                                # Method 2: Using commit object
+                                pr.create_review_comment(
+                                    formatted_comment,
+                                    head_commit,
+                                    comment_data['file'],
+                                    diff_position
+                                )
+                                print(f"✅ Posted inline comment (method 2) for {comment_data['file']} at position {diff_position}")
+                                comments_posted += 1
+                            except Exception as e2:
+                                print(f"❌ Method 1 failed: {e1}")
+                                print(f"❌ Method 2 failed: {e2}")
+                                raise Exception(f"Both inline methods failed: {e1}, {e2}")
                     else:
                         # No valid position found, use general comment
                         raise Exception("Could not calculate diff position")
                         
                 except Exception as inline_error:
-                    # Fallback to general comment with file reference
-                    general_comment = f"**File: `{comment_data['file']}`** (line ~{comment_data['line']})\n\n{formatted_comment}"
-                    pr.create_issue_comment(general_comment)
-                    print(f"✅ Posted general comment for {comment_data['file']}:{comment_data['line']} (inline failed: {str(inline_error)[:50]}...)")
-                    comments_posted += 1
+                    # Try alternative: create a review with inline comments
+                    try:
+                        print(f"🔄 Trying review API for {comment_data['file']}:{comment_data['line']}")
+                        
+                        # Create review with inline comment
+                        review_comments = [{
+                            'path': comment_data['file'],
+                            'position': diff_position if diff_position else 1,
+                            'body': formatted_comment
+                        }]
+                        
+                        review = pr.create_review(
+                            body="Auto-review based on similar past reviews",
+                            event="COMMENT",
+                            comments=review_comments
+                        )
+                        print(f"✅ Posted review comment for {comment_data['file']} at position {diff_position}")
+                        comments_posted += 1
+                        
+                    except Exception as review_error:
+                        # Final fallback to general comment with file reference
+                        general_comment = f"**File: `{comment_data['file']}`** (line ~{comment_data['line']})\n\n{formatted_comment}"
+                        pr.create_issue_comment(general_comment)
+                        print(f"✅ Posted general comment for {comment_data['file']}:{comment_data['line']} (inline failed: {str(inline_error)[:50]}..., review failed: {str(review_error)[:50]}...)")
+                        comments_posted += 1
                     
             except Exception as e:
                 print(f"❌ Error posting comment for {comment_data['file']}: {e}")
