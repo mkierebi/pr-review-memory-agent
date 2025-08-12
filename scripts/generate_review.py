@@ -292,49 +292,69 @@ Review comment:"""
 def extract_line_number_from_hunk(hunk_header: str) -> int:
     """Extract line number from git hunk header"""
     try:
+        print(f"🔍 Parsing hunk header: '{hunk_header}'")
         # Parse hunk header like "@@ -10,7 +10,7 @@" or "@@ -10,7 +10,7 @@ some context"
         import re
         
         # Look for pattern like "+10,7" or "+10"
         match = re.search(r'\+(\d+)', hunk_header)
         if match:
-            return int(match.group(1))
+            result = int(match.group(1))
+            print(f"  ✅ Regex match found: {result}")
+            return result
         
         # Fallback: try to find any number after +
         parts = hunk_header.split()
+        print(f"  📝 Hunk parts: {parts}")
         for part in parts:
             if '+' in part:
                 nums = re.findall(r'\+(\d+)', part)
                 if nums:
-                    return int(nums[0])
+                    result = int(nums[0])
+                    print(f"  ✅ Fallback found: {result}")
+                    return result
         
+        print(f"  ❌ No line number found, returning 1")
         return 1
     except Exception as e:
+        print(f"  ❌ Error parsing hunk: {e}")
         return 1
 
 
 def extract_line_number_from_chunk(chunk: Dict) -> int:
     """Extract line number from code chunk by finding first added line"""
     try:
+        print(f"🔍 Debug chunk structure:")
+        print(f"  📁 filename: {chunk.get('filename')}")
+        print(f"  📍 hunk_header: '{chunk.get('hunk_header')}'")
+        print(f"  📝 code_chunk preview: {chunk.get('code_chunk', '')[:150]}...")
+        
         # First try to get line from hunk header
         hunk_line = extract_line_number_from_hunk(chunk['hunk_header'])
+        print(f"  📊 hunk_line from header: {hunk_line}")
         
         # Then look for the first added line in the chunk
         lines = chunk['code_chunk'].split('\n')
         line_offset = 0
         
-        for line in lines:
+        print(f"  📋 code chunk lines (first 15):")
+        for i, line in enumerate(lines[:15]):  # Show first 15 lines
+            print(f"    {i:2d}: '{line}'")
             if line.startswith('+') and not line.startswith('+++'):
                 # Found first added line
-                return hunk_line + line_offset
+                result = hunk_line + line_offset
+                print(f"  🎯 Found first + line at offset {line_offset}, final line: {result}")
+                return result
             elif line.startswith(' ') or line.startswith('+'):
                 # Count context and added lines
                 line_offset += 1
         
         # No added lines found, return hunk start
+        print(f"  ⚠️ No + lines found, returning hunk start: {hunk_line}")
         return hunk_line
         
     except Exception as e:
+        print(f"  ❌ Error in extract_line_number_from_chunk: {e}")
         return 1
 
 
