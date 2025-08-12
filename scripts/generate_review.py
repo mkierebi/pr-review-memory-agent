@@ -11,7 +11,6 @@ from faiss_memory_manager import FAISSMemoryManager
 import requests
 from typing import List, Dict, Tuple
 
-from call_claude_api import call_claude_api
 from post_review import load_review_context
 
 
@@ -141,6 +140,42 @@ def find_similar_past_reviews(code_chunks: List[Dict], memory_manager: FAISSMemo
             review_suggestions.append(suggestion)
     
     return review_suggestions
+
+
+def call_cohere_api(prompt: str, model: str = "command-r-plus", max_tokens: int = 300) -> str:
+    """Call Cohere API for simple text generation"""
+    try:
+        cohere_api_key = os.getenv('COHERE_API_KEY')
+        if not cohere_api_key:
+            return "Error: COHERE_API_KEY not found"
+
+        headers = {
+            "Authorization": f"Bearer {cohere_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": model,
+            "message": prompt,
+            "max_tokens": max_tokens,
+            "temperature": 0.3
+        }
+        
+        response = requests.post(
+            "https://api.cohere.com/v1/chat",
+            headers=headers,
+            json=data,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            return result['text'].strip()
+        else:
+            return f"Error: {response.status_code} - {response.text}"
+            
+    except Exception as e:
+        return f"Error calling Cohere API: {e}"
 
 
 def build_review_prompt(code_chunk, review_context):
@@ -369,7 +404,7 @@ def main():
             for chunk in code_chunks:
                 prompt = build_review_prompt(chunk['code_chunk'], review_context)
                 # Call to your LLM API to generate the comment
-                comment_text = call_claude_api(prompt)
+                comment_text = call_cohere_api(prompt)
                 review_comments.append({
                     'file': chunk['filename'],
                     'line': extract_line_number_from_hunk(chunk['hunk_header']),
