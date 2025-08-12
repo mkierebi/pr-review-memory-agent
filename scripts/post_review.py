@@ -55,6 +55,51 @@ def load_review_context(context_path: str = "scripts/review_rules.txt") -> str:
     return ""
 
 
+def calculate_diff_position(pr, file_path: str, target_line: int) -> int:
+    """Calculate the position in the diff for a given line number"""
+    try:
+        # Get the diff for the file
+        files = pr.get_files()
+        target_file = None
+        
+        for file in files:
+            if file.filename == file_path:
+                target_file = file
+                break
+        
+        if not target_file or not target_file.patch:
+            return None
+            
+        # Parse the patch to find the position
+        patch_lines = target_file.patch.split('\n')
+        position = 0
+        current_line = 0
+        
+        for line in patch_lines:
+            if line.startswith('@@'):
+                # Parse hunk header to get starting line
+                import re
+                match = re.search(r'\+(\d+)', line)
+                if match:
+                    current_line = int(match.group(1)) - 1
+                continue
+                
+            position += 1
+            
+            if line.startswith('+'):
+                current_line += 1
+                if current_line == target_line:
+                    return position
+            elif line.startswith(' '):
+                current_line += 1
+            # Lines starting with '-' don't increment current_line
+        
+        return None
+    except Exception as e:
+        print(f"Error calculating diff position: {e}")
+        return None
+
+
 def post_review_comments():
     """Post generated review comments to PR"""
     
@@ -98,16 +143,23 @@ def post_review_comments():
                 
                 # Try inline comment first, fallback to general comment
                 try:
-                    # For inline comments, we need the position in the diff, not line number
-                    pr.create_review_comment(
-                        body=formatted_comment,
-                        commit=head_commit,
-                        path=comment_data['file'],
-                        line=comment_data['line'],
-                        side='RIGHT'
-                    )
-                    print(f"✅ Posted inline comment for {comment_data['file']}:{comment_data['line']}")
-                    comments_posted += 1
+                    # Calculate diff position for inline comments
+                    diff_position = calculate_diff_position(pr, comment_data['file'], comment_data['line'])
+                    
+                    if diff_position is not None:
+                        # Use position for inline comments
+                        pr.create_review_comment(
+                            body=formatted_comment,
+                            commit=head_commit,
+                            path=comment_data['file'],
+                            position=diff_position
+                        )
+                        print(f"✅ Posted inline comment for {comment_data['file']} at position {diff_position} (line {comment_data['line']})")
+                        comments_posted += 1
+                    else:
+                        # No valid position found, use general comment
+                        raise Exception("Could not calculate diff position")
+                        
                 except Exception as inline_error:
                     # Fallback to general comment with file reference
                     general_comment = f"**File: `{comment_data['file']}`** (line ~{comment_data['line']})\n\n{formatted_comment}"

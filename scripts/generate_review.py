@@ -235,8 +235,8 @@ Response format: Provide only the review comment text, or "NO_REVIEW_NEEDED" if 
                 comment_text = result['content'][0]['text'].strip()
                 
                 if comment_text and comment_text != "NO_REVIEW_NEEDED":
-                    # Extract line information for inline comments
-                    line_number = extract_line_number_from_hunk(suggestion['hunk_header'])
+                    # Extract line information for inline comments - use better line detection
+                    line_number = extract_line_number_from_chunk(suggestion)
 
                     if review_context:
                         comment_text = f"{comment_text}\n\n---\n*📜 Review context:*\n{review_context}"
@@ -266,6 +266,52 @@ Response format: Provide only the review comment text, or "NO_REVIEW_NEEDED" if 
 
 
 def extract_line_number_from_hunk(hunk_header: str) -> int:
+    """Extract line number from git hunk header"""
+    try:
+        # Parse hunk header like "@@ -10,7 +10,7 @@" or "@@ -10,7 +10,7 @@ some context"
+        import re
+        
+        # Look for pattern like "+10,7" or "+10"
+        match = re.search(r'\+(\d+)', hunk_header)
+        if match:
+            return int(match.group(1))
+        
+        # Fallback: try to find any number after +
+        parts = hunk_header.split()
+        for part in parts:
+            if '+' in part:
+                nums = re.findall(r'\+(\d+)', part)
+                if nums:
+                    return int(nums[0])
+        
+        return 1
+    except Exception as e:
+        return 1
+
+
+def extract_line_number_from_chunk(chunk: Dict) -> int:
+    """Extract line number from code chunk by finding first added line"""
+    try:
+        # First try to get line from hunk header
+        hunk_line = extract_line_number_from_hunk(chunk['hunk_header'])
+        
+        # Then look for the first added line in the chunk
+        lines = chunk['code_chunk'].split('\n')
+        line_offset = 0
+        
+        for line in lines:
+            if line.startswith('+') and not line.startswith('+++'):
+                # Found first added line
+                return hunk_line + line_offset
+            elif line.startswith(' ') or line.startswith('+'):
+                # Count context and added lines
+                line_offset += 1
+        
+        # No added lines found, return hunk start
+        return hunk_line
+        
+    except Exception as e:
+        return 1
     """Extract line number from git hunk header"""
     try:
         # Parse hunk header like "@@ -10,7 +10,7 @@" or "@@ -10,7 +10,7 @@ some context"
