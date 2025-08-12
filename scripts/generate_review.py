@@ -142,6 +142,7 @@ def find_similar_past_reviews(code_chunks: List[Dict], memory_manager: FAISSMemo
     
     return review_suggestions
 
+
 def build_review_prompt(code_chunk, review_context):
     return f"""You are a code reviewer.
 Review the following code according to these guidelines:
@@ -154,77 +155,65 @@ Code to review:
 List any issues found, referencing the guidelines. If everything is OK, say so.
 """
 
-def generate_review_comments_with_claude(review_suggestions: List[Dict], pr_info: Dict) -> List[Dict]:
-    """Use Claude to generate contextual review comments based on similar past reviews"""
+
+def generate_review_comments_with_cohere(review_suggestions: List[Dict], pr_info: Dict) -> List[Dict]:
+    """Use Cohere to generate contextual review comments based on similar past reviews"""
     
-    anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
-    if not anthropic_api_key:
-        print("ANTHROPIC_API_KEY not found")
+    cohere_api_key = os.getenv('COHERE_API_KEY')
+    if not cohere_api_key:
+        print("❌ COHERE_API_KEY not found in environment variables")
         return []
-    
-    review_context_path = "scripts/review_rules.txt"
-    review_context = ""
-    if os.path.exists(review_context_path):
-        with open(review_context_path, "r", encoding="utf-8") as f:
-            review_context = f.read()
-    
+
     review_comments = []
+    review_context = load_review_context()
     
     for suggestion in review_suggestions:
-        # Build prompt for Claude
-        similar_reviews_text = ""
-        for sr in suggestion['similar_reviews']:
-            similar_reviews_text += f"""
-Past Review (similarity: {sr['similarity']:.2f}):
-Reviewer: {sr['reviewer']}
-Tags: {', '.join(sr['tags'])}
-Comment: {sr['comment']}
-Original code context: {sr['original_code']}
----
-"""
+        # Build prompt for review generation
+        similar_reviews_text = "\n".join([
+            f"- Reviewer {sr['reviewer']}: {sr['comment']} (similarity: {sr['similarity']:.2f})"
+            for sr in suggestion['similar_reviews']
+        ])
         
-        prompt = f"""You are a code reviewer analyzing a pull request. Based on similar past reviews, provide a helpful review comment for the following code change.
+        prompt = f"""You are a code reviewer analyzing this code change.
 
-PR Information:
-- Title: {pr_info.get('title', 'N/A')}
-- File: {suggestion['file']}
-
-Current Code Change:
+Code to review:
+```
 {suggestion['code_chunk']}
+```
 
-Similar Past Reviews Found:
+File: {suggestion['file']}
+
+Similar past reviews for reference:
 {similar_reviews_text}
 
-Based on these similar past reviews, generate a concise, helpful review comment for the current code change. Focus on:
-1. Specific issues that might apply to this code
+Additional context:
+{review_context}
+
+Based on the similar past reviews and the code change, provide a constructive review comment. Focus on:
+1. Issues that were caught in similar past reviews
 2. Best practices from past reviews
 3. Consistency with previous feedback patterns
 
-If the similar reviews don't apply well to the current code, indicate that no review is needed.
+If the similar reviews don't apply well to the current code, respond with "NO_REVIEW_NEEDED".
 
-Response format: Provide only the review comment text, or "NO_REVIEW_NEEDED" if not applicable."""
+Review comment:"""
 
         try:
-            # Call Claude API (using requests since anthropic library might not have the exact endpoint we need)
+            # Call Cohere API
             headers = {
-                "Content-Type": "application/json",
-                "x-api-key": anthropic_api_key,
-                "anthropic-version": "2023-06-01"
+                "Authorization": f"Bearer {cohere_api_key}",
+                "Content-Type": "application/json"
             }
             
             data = {
-                "model": "claude-3-5-sonnet-20241022",
+                "model": "command-r-plus",
+                "message": prompt,
                 "max_tokens": 300,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                "temperature": 0.3
             }
             
             response = requests.post(
-                "https://api.anthropic.com/v1/messages",
+                "https://api.cohere.com/v1/chat",
                 headers=headers,
                 json=data,
                 timeout=30
@@ -232,7 +221,7 @@ Response format: Provide only the review comment text, or "NO_REVIEW_NEEDED" if 
             
             if response.status_code == 200:
                 result = response.json()
-                comment_text = result['content'][0]['text'].strip()
+                comment_text = result['text'].strip()
                 
                 if comment_text and comment_text != "NO_REVIEW_NEEDED":
                     # Extract line information for inline comments - use better line detection
@@ -256,7 +245,7 @@ Response format: Provide only the review comment text, or "NO_REVIEW_NEEDED" if 
                     
                     print(f"Generated review for {suggestion['file']}:{line_number}")
             else:
-                print(f"Error calling Claude API: {response.status_code} - {response.text}")
+                print(f"Error calling Cohere API: {response.status_code} - {response.text}")
                 
         except Exception as e:
             print(f"Error generating review comment: {e}")
@@ -266,72 +255,6 @@ Response format: Provide only the review comment text, or "NO_REVIEW_NEEDED" if 
 
 
 def extract_line_number_from_hunk(hunk_header: str) -> int:
-    """Extract line number from git hunk header"""
-    try:
-        print(f"🔍 Parsing hunk header: '{hunk_header}'")
-        # Parse hunk header like "@@ -10,7 +10,7 @@" or "@@ -10,7 +10,7 @@ some context"
-        import re
-        
-        # Look for pattern like "+10,7" or "+10"
-        match = re.search(r'\+(\d+)', hunk_header)
-        if match:
-            result = int(match.group(1))
-            print(f"  - Regex match found: {result}")
-            return result
-        
-        # Fallback: try to find any number after +
-        parts = hunk_header.split()
-        print(f"  - Hunk parts: {parts}")
-        for part in parts:
-            if '+' in part:
-                nums = re.findall(r'\+(\d+)', part)
-                if nums:
-                    result = int(nums[0])
-                    print(f"  - Fallback found: {result}")
-                    return result
-        
-        print(f"  - No line number found, returning 1")
-        return 1
-    except Exception as e:
-        print(f"  - Error parsing hunk: {e}")
-        return 1
-
-
-def extract_line_number_from_chunk(chunk: Dict) -> int:
-    """Extract line number from code chunk by finding first added line"""
-    try:
-        print(f"🔍 Debug chunk structure:")
-        print(f"  - filename: {chunk.get('filename')}")
-        print(f"  - hunk_header: '{chunk.get('hunk_header')}'")
-        print(f"  - code_chunk preview: {chunk.get('code_chunk', '')[:100]}...")
-        
-        # First try to get line from hunk header
-        hunk_line = extract_line_number_from_hunk(chunk['hunk_header'])
-        print(f"  - hunk_line from header: {hunk_line}")
-        
-        # Then look for the first added line in the chunk
-        lines = chunk['code_chunk'].split('\n')
-        line_offset = 0
-        
-        print(f"  - code chunk lines:")
-        for i, line in enumerate(lines[:10]):  # Show first 10 lines
-            print(f"    {i}: '{line}'")
-            if line.startswith('+') and not line.startswith('+++'):
-                # Found first added line
-                result = hunk_line + line_offset
-                print(f"  - Found first + line at offset {line_offset}, final line: {result}")
-                return result
-            elif line.startswith(' ') or line.startswith('+'):
-                # Count context and added lines
-                line_offset += 1
-        
-        # No added lines found, return hunk start
-        print(f"  - No + lines found, returning hunk start: {hunk_line}")
-        return hunk_line
-        
-    except Exception as e:
-        print(f"  - Error in extract_line_number_from_chunk: {e}")
-        return 1
     """Extract line number from git hunk header"""
     try:
         # Parse hunk header like "@@ -10,7 +10,7 @@" or "@@ -10,7 +10,7 @@ some context"
@@ -351,6 +274,31 @@ def extract_line_number_from_chunk(chunk: Dict) -> int:
                     return int(nums[0])
         
         return 1
+    except Exception as e:
+        return 1
+
+
+def extract_line_number_from_chunk(chunk: Dict) -> int:
+    """Extract line number from code chunk by finding first added line"""
+    try:
+        # First try to get line from hunk header
+        hunk_line = extract_line_number_from_hunk(chunk['hunk_header'])
+        
+        # Then look for the first added line in the chunk
+        lines = chunk['code_chunk'].split('\n')
+        line_offset = 0
+        
+        for line in lines:
+            if line.startswith('+') and not line.startswith('+++'):
+                # Found first added line
+                return hunk_line + line_offset
+            elif line.startswith(' ') or line.startswith('+'):
+                # Count context and added lines
+                line_offset += 1
+        
+        # No added lines found, return hunk start
+        return hunk_line
+        
     except Exception as e:
         return 1
 
@@ -446,14 +394,14 @@ def main():
                 print("✅ Review generated with context rules only")
         return
     
-    # Generate review comments using Claude
+    # Generate review comments using Cohere
     pr_info = {
         'title': pr.title,
         'number': pr.number,
         'author': pr.user.login
     }
     
-    review_comments = generate_review_comments_with_claude(review_suggestions, pr_info)
+    review_comments = generate_review_comments_with_cohere(review_suggestions, pr_info)
     print(f"💬 Generated {len(review_comments)} review comments")
     
     # Save generated review
