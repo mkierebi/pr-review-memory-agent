@@ -1,27 +1,35 @@
 # 🧠 PR Review Memory System
 
-Automatyczny system uczenia się z historii review'ów PR w GitHub, który wykorzystuje embeddingi Claude i FAISS do dostarczania kontekstowych sugestii review'ów.
+Automated - Extracts comments from reviews
+- Creates embeddings via Cohere API
+- Saves in FAISS index on `memory` branch
 
-## 🎯 Jak to działa
+### `auto-review.yml`  
+**Trigger**: `pull_request` (opened/synchronize)
+- Analyzes PR changes
+- Searches similar cases from memory
+- Generates contextual suggestions via Cohere
+- Posts comments on PR learning from GitHub PR review history that uses Cohere embeddings and FAISS to provide contextual review suggestions.
 
-1. **Zbieranie wiedzy**: Każdy review PR → embeddingi → przechowywane w gałęzi `memory`
-2. **Automatyczne review**: Nowy PR → wyszukiwanie podobnych przypadków → generowanie sugestii przez Claude
+## 🎯 How It Works
+
+1. **Knowledge Collection**: Each PR review → embeddings → stored in `memory` branch
+2. **Auto Review**: New PR → search similar cases → generate suggestions via Cohere
 
 ## 🚀 Setup
 
 ### 1. GitHub Secrets
 
-Dodaj w Settings → Secrets and variables → Actions:
+Add in Settings → Secrets and variables → Actions:
 
 ```bash
-ANTHROPIC_API_KEY=your_claude_api_key_here
 COHERE_API_KEY=your_cohere_api_key_here
 ```
 
-### 2. Utworzenie gałęzi memory
+### 2. Create Memory Branch
 
 ```bash
-# Automatycznie tworzona przez pierwszego workflow, ale można stworzyć ręcznie:
+# Automatically created by first workflow, but can be created manually:
 git checkout --orphan memory
 git rm -rf .
 mkdir memory_data
@@ -33,33 +41,33 @@ git push origin memory
 
 ### 3. Permissions
 
-W Settings → Actions → General → Workflow permissions:
+In Settings → Actions → General → Workflow permissions:
 - ✅ **Read and write permissions**
 - ✅ **Allow GitHub Actions to create and approve pull requests**
 
-## 📋 Workflow'y
+## 📋 Workflows
 
 ### `collect-reviews.yml`
 **Trigger**: `pull_request_review` + `pull_request_review_comment`
-- Ekstraktuje komentarze z review'ów
-- Tworzy embeddingi przez Claude API
-- Zapisuje w FAISS index na gałęzi `memory`
+- Extracts comments from reviews
+- Creates embeddings via Cohere API
+- Saves in FAISS index on `memory` branch
 
 ### `auto-review.yml`  
 **Trigger**: `pull_request` (opened/synchronize)
-- Analizuje zmiany w PR
-- Wyszukuje podobne przypadki z memory
-- Generuje kontekstowe sugestie przez Claude
-- Postuje komentarze na PR
+- Analyzes PR changes
+- Searches similar cases from memory
+- Generates contextual suggestions via Cohere model
+- Posts comments on PR
 
-## 🛠 Komponenty
+## 🛠 Components
 
 ### Core Files
-- `scripts/claude_embeddings.py` - Cohere API integration + embedding management
+- `scripts/claude_embeddings.py` - Cohere API integration + embedding management (filename kept for compatibility)
 - `scripts/faiss_memory_manager.py` - FAISS vector storage + similarity search
-- `scripts/extract_review.py` - Ekstrakcja review'ów z GitHub events
-- `scripts/generate_review.py` - Generowanie automatycznych review'ów
-- `scripts/post_review.py` - Postowanie komentarzy na GitHub
+- `scripts/extract_review.py` - Extract reviews from GitHub events
+- `scripts/generate_review.py` - Generate automatic reviews
+- `scripts/post_review.py` - Post comments to GitHub
 
 ### Memory Structure
 ```
@@ -69,30 +77,29 @@ memory/ branch:
 │   └── metadata.json        # Review metadata + mappings
 ```
 
-## 🔧 Konfiguracja
+## 🔧 Configuration
 
 ### Environment Variables
 ```bash
 GITHUB_TOKEN=automatic        # Provided by GitHub Actions
-ANTHROPIC_API_KEY=required    # Your Claude API key for review generation
-COHERE_API_KEY=required       # Your Cohere API key for embeddings
+COHERE_API_KEY=required       # Your Cohere API key for embeddings and review generation
 PR_NUMBER=automatic          # From GitHub event
 REPO_NAME=automatic          # From GitHub context
 ```
 
 ### Customization
 
-W `claude_embeddings.py`:
+In `claude_embeddings.py` (filename kept for compatibility):
 - **Similarity threshold**: `min_similarity=0.3` (30%)
-- **Embedding dimension**: `dimension=768`
+- **Embedding dimension**: `dimension=384`
 - **Top results**: `top_k=5`
 
-W `generate_review.py`:
+In `generate_review.py`:
 - **Chunk size**: `max_lines=20`
-- **Claude model**: `claude-3-sonnet-20240229`
+- **Cohere model**: `command-r-plus`
 - **Max tokens**: `300`
 
-## 📊 Przykład działania
+## 📊 Example Usage
 
 ### 1. Review submission
 ```
@@ -119,30 +126,30 @@ This method should validate the payment object for null values before processing
 
 ## 🎯 Features
 
-- **Smart chunking**: Dzieli duże diff'y na smaller reviewable chunks
-- **Context awareness**: Uwzględnia filename, PR title, kod context
-- **Tag extraction**: Automatyczne tagowanie (security, performance, style, etc.)
-- **Similarity filtering**: Tylko relevantne sugestie (>30% similarity)
-- **Fallback handling**: General comments jeśli inline fails
+- **Smart chunking**: Splits large diffs into smaller reviewable chunks
+- **Context awareness**: Considers filename, PR title, code context
+- **Tag extraction**: Automatic tagging (security, performance, style, etc.)
+- **Similarity filtering**: Only relevant suggestions (>30% similarity)
+- **Fallback handling**: General comments if inline fails
 - **Batch processing**: Efficient embedding storage
 - **Memory persistence**: Incrementally updated knowledge base
 
 ## 🚨 Troubleshooting
 
-### Workflow nie działa?
-1. Sprawdź czy `ANTHROPIC_API_KEY` jest ustawiony
+### Workflow not working?
+1. Check if `COHERE_API_KEY` is set
 2. Verify repo permissions (write access)
-3. Check czy memory branch exists
+3. Check if memory branch exists
 
-### Brak sugestii?
-1. Memory może być pusta (first PRs)
+### No suggestions?
+1. Memory might be empty (first PRs)
 2. **Context mismatch** - Ensure embedding context format is consistent between storage and search
-3. Check Claude API quota/limits
+3. Check Cohere API quota/limits
 4. Low similarity threshold - try lowering min_similarity in generate_review.py
 
-### Error w komentarzach?
-1. PR może być za duży (rate limiting)
-2. File paths changed between review i post
+### Error in comments?
+1. PR might be too large (rate limiting)
+2. File paths changed between review and post
 3. GitHub API rate limits
 
 ### Context Format Issue (Fixed)
@@ -169,14 +176,14 @@ print(m.get_stats())
 
 ## 🔒 Security Notes
 
-- Claude API key stored as GitHub Secret
-- Memory branch contains only embeddings, nie raw code
+- Cohere API key stored as GitHub Secret
+- Memory branch contains only embeddings, not raw code
 - No sensitive data in embeddings (hashed IDs)
 - GitHub token auto-scoped to repository
 
-## 🚀 Rozszerzenia
+## 🚀 Extensions
 
-### Możliwe ulepszenia:
+### Possible improvements:
 1. **Custom tagging** - Team-specific categories
 2. **Reviewer weighting** - Trust scores based on experience  
 3. **File type awareness** - Different models per language
